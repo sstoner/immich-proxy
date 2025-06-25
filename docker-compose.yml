@@ -1,0 +1,12 @@
+version: '3.8'
+services:
+  immich-proxy:
+    build: .
+    container_name: immich-proxy
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config.yaml:/app/config.yaml:ro
+    environment:
+      - TZ=Europe/London
+    restart: unless-stopped
