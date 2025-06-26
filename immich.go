@@ -6,22 +6,25 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type IMMICHClient struct {
-	ImmichURL string
-	APIKey    string
+	ImmichURL  string
+	AlbumsKeys *AlbumsKeys
 }
 
-func NewIMMICHClient(immichURL, apiKey string) *IMMICHClient {
+func NewIMMICHClient(immichURL string, albumsKeys *AlbumsKeys) *IMMICHClient {
 	return &IMMICHClient{
-		ImmichURL: immichURL,
-		APIKey:    apiKey,
+		ImmichURL:  immichURL,
+		AlbumsKeys: albumsKeys,
 	}
 }
 
-func (c *IMMICHClient) request(endpoint, method string, body interface{}, out interface{}) error {
+func (c *IMMICHClient) request(endpoint, method, apiKey string, body interface{}, out interface{}) error {
 	url := fmt.Sprintf("%s/api%s", c.ImmichURL, endpoint)
 	var reqBody io.Reader
 	if body != nil {
@@ -39,14 +42,18 @@ func (c *IMMICHClient) request(endpoint, method string, body interface{}, out in
 	req.Header.Set("Content-Type", "application/json")
 	// only start with albums add apiKey
 	if method == http.MethodGet && strings.HasPrefix(endpoint, "/albums") {
-		req.Header.Set("x-api-key", c.APIKey)
+		req.Header.Set("x-api-key", apiKey)
 	}
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Warnf("failed to close response body: %v", err)
+		}
+	}()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)
@@ -59,41 +66,67 @@ func (c *IMMICHClient) request(endpoint, method string, body interface{}, out in
 	return nil
 }
 
-func (c *IMMICHClient) GetAlbumInfo(albumID string) (AlbumInfo, error) {
+func (c *IMMICHClient) GetAlbumInfo(albumID string, withoutAssets bool) (AlbumInfo, error) {
 	var result AlbumInfo
-	endpoint := fmt.Sprintf("/albums/%s", albumID)
-	err := c.request(endpoint, http.MethodGet, nil, &result)
+	endpoint := fmt.Sprintf("/albums/%s?withoutAssets=%t", albumID, withoutAssets)
+	apiKey := c.AlbumsKeys.GetAlbumKey(albumID)
+	err := c.request(endpoint, http.MethodGet, apiKey, nil, &result)
 	return result, err
 }
 
 func (c *IMMICHClient) GetSharedLinksInfo(key string) (SharedLinkInfo, error) {
 	var result SharedLinkInfo
 	endpoint := fmt.Sprintf("/shared-links/me?key=%s", key)
-	err := c.request(endpoint, http.MethodGet, nil, &result)
+	err := c.request(endpoint, http.MethodGet, "", nil, &result)
 	return result, err
 }
 
 func (c *IMMICHClient) GetAssetInfo(assetID string, shareKey string) (AssetInfo, error) {
 	var result AssetInfo
 	endpoint := fmt.Sprintf("/assets/%s?key=%s", assetID, shareKey)
-	err := c.request(endpoint, http.MethodGet, nil, &result)
+	err := c.request(endpoint, http.MethodGet, "", nil, &result)
 	return result, err
 }
 
-func (c *IMMICHClient) GetAssetThumbnail(assetID, size string) ([]byte, error) {
-	endpoint := fmt.Sprintf("/assets/%s/thumbnail?size=%s", assetID, size)
+func (c *IMMICHClient) GetAssetThumbnail(assetID, size, shareKey string) ([]byte, error) {
+	return c.GetAssetFile(
+		fmt.Sprintf("/assets/%s/thumbnail", assetID),
+		map[string]string{"size": size, "key": shareKey},
+	)
+}
+
+func (c *IMMICHClient) GetAssetOriginal(assetID, shareKey string) ([]byte, error) {
+	return c.GetAssetFile(
+		fmt.Sprintf("/assets/%s/original", assetID),
+		map[string]string{"key": shareKey},
+	)
+}
+
+func (c *IMMICHClient) GetAssetFile(path string, query map[string]string) ([]byte, error) {
+	endpoint := path
+	if len(query) > 0 {
+		q := url.Values{}
+		for k, v := range query {
+			q.Set(k, v)
+		}
+		endpoint = fmt.Sprintf("%s?%s", endpoint, q.Encode())
+	}
 	url := fmt.Sprintf("%s/api%s", c.ImmichURL, endpoint)
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
-	req.Header.Set("x-api-key", c.APIKey)
+
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Warnf("failed to close response body: %v", err)
+		}
+	}()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("immich api error on endpoint %s: %d %s: %s", url, resp.StatusCode, resp.Status, string(b))

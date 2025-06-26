@@ -1,0 +1,36 @@
+# Binaries
+immich-proxy
+*.exe
+*.out
+*.test
+
+# Build directories
+/build/
+/bin/
+
+# Dependency directories
+/vendor/
+
+# IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.tmp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Go modules cache
+/go.sum
+
+# Docker
+*.tar
+
+# Config (do not commit local config)
+config.yaml

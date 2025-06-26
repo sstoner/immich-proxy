@@ -5,13 +5,6 @@ import (
 	"strings"
 )
 
-/*
-/api/albums/id?key=
-/api/shared-links/me?key=
-/api/assets/id&key=
-/api/assets/id/thumbnail?size=preview|thumbnail&key=
-*/
-
 func GetShareKey(r *http.Request) string {
 	keys, ok := r.URL.Query()["key"]
 	if !ok || len(keys) == 0 {
@@ -30,6 +23,14 @@ func GetAssetSize(r *http.Request) string {
 		return ""
 	}
 	return size
+}
+
+func GetAlbumWithoutAssets(r *http.Request) bool {
+	keys, ok := r.URL.Query()["withoutAssets"]
+	if !ok || len(keys) == 0 {
+		return false
+	}
+	return keys[0] == "true"
 }
 
 func GetAssetID(r *http.Request) string {
