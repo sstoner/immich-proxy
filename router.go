@@ -30,9 +30,11 @@ func NewRouter(immichService *ImmichService, corsConfig *CORSConfig) *mux.Router
 
 	r.PathPrefix("/").HandlerFunc(ProxyHandler)
 
-	r.Use(func(next http.Handler) http.Handler {
-		return corsMiddleware(next, corsConfig)
-	})
+	if corsConfig != nil {
+		r.Use(func(next http.Handler) http.Handler {
+			return corsMiddleware(next, corsConfig)
+		})
+	}
 	return r
 }
 
