@@ -1,11 +1,13 @@
 package main
 
 import (
+	"net/http"
+
 	"github.com/gorilla/mux"
 )
 
 // NewRouter creates and returns a mux.Router with all routes registered
-func NewRouter(immichService *ImmichService) *mux.Router {
+func NewRouter(immichService *ImmichService, corsConfig *CORSConfig) *mux.Router {
 	r := mux.NewRouter()
 
 	r.HandleFunc(`/api/albums/{id:[^/]+}`, immichService.AlbumHandler).Methods("GET")
@@ -28,5 +30,21 @@ func NewRouter(immichService *ImmichService) *mux.Router {
 
 	r.PathPrefix("/").HandlerFunc(ProxyHandler)
 
+	r.Use(func(next http.Handler) http.Handler {
+		return corsMiddleware(next, corsConfig)
+	})
 	return r
+}
+
+func corsMiddleware(next http.Handler, corsConfig *CORSConfig) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", corsConfig.AllowOrigin)
+		w.Header().Set("Access-Control-Allow-Methods", corsConfig.AllowMethods)
+		w.Header().Set("Access-Control-Allow-Headers", corsConfig.AllowHeaders)
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }

@@ -13,8 +13,16 @@ type Config struct {
 		APIKeys               []string `yaml:"api_keys"`
 		AlbumsRefreshInterval string   `yaml:"albumsRefreshInterval,omitempty"`
 	} `yaml:"immich"`
-	Listen   string `yaml:"listen"`
-	LogLevel string `yaml:"logLevel"`
+	Listen   string     `yaml:"listen"`
+	LogLevel string     `yaml:"logLevel"`
+	Cors     CORSConfig `yaml:"cors,omitempty"`
+}
+
+type CORSConfig struct {
+	AllowOrigin      string `yaml:"allowOrigin"`
+	AllowMethods     string `yaml:"allowMethods"`
+	AllowHeaders     string `yaml:"allowHeaders"`
+	AllowCredentials bool   `yaml:"allowCredentials"`
 }
 
 func loadConfig(path string) (*Config, error) {
@@ -33,4 +41,8 @@ func loadConfig(path string) (*Config, error) {
 		return nil, err
 	}
 	return &cfg, nil
+}
+
+func (c *Config) GetCORSConfig() *CORSConfig {
+	return &c.Cors
 }

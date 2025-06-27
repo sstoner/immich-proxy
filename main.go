@@ -38,7 +38,7 @@ func main() {
 		client: NewIMMICHClient(cfg.Immich.URL, albumsKeys),
 	}
 
-	r := NewRouter(immichService)
+	r := NewRouter(immichService, cfg.GetCORSConfig())
 
 	log.Infof("[INFO] Immich Proxy Server started on %s", cfg.Listen)
 	if err := http.ListenAndServe(cfg.Listen, r); err != nil {
