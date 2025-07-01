@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -13,15 +14,19 @@ import (
 )
 
 type AlbumsKeys struct {
-	ApiKeys    []string
-	AlbumsKeys map[string]string // map of album ID to API key
-	lock       sync.Mutex        // to protect AlbumsKeys
+	ApiKeys       []string
+	syncEnabled   bool              // whether to fetch albums asynchronously
+	immageBaseURL string            // base URL for Immich API
+	AlbumsKeys    map[string]string // map of album ID to API key
+	lock          sync.Mutex        // to protect AlbumsKeys
 }
 
-func NewAlbumsKeys(keys []string) *AlbumsKeys {
+func NewAlbumsKeys(keys []string, syncEnabled bool, immageBaseURL string) *AlbumsKeys {
 	return &AlbumsKeys{
-		ApiKeys:    keys,
-		AlbumsKeys: make(map[string]string),
+		ApiKeys:       keys,
+		AlbumsKeys:    make(map[string]string),
+		syncEnabled:   syncEnabled,
+		immageBaseURL: immageBaseURL,
 	}
 }
 
@@ -37,6 +42,41 @@ func (a *AlbumsKeys) setAlbumKey(albumId, key string) {
 }
 
 func (a *AlbumsKeys) GetAlbumKey(albumId string) string {
+	key := a.getAlbumKeyFromMap(albumId)
+	if key == "" && !a.syncEnabled {
+		log.Debugf("Album key for %s not found in map, fetching without sync", albumId)
+		key = a.GetAlbumKeyWithoutSync(albumId)
+		if key == "" {
+			log.Warnf("No API key found for album %s", albumId)
+			return ""
+		}
+	} else if key == "" {
+		log.Debugf("Album key for %s found in map: %s", albumId, key)
+	} else {
+		log.Debugf("Using cached album key for %s: %s", albumId, key)
+	}
+
+	return key
+}
+
+func (a *AlbumsKeys) GetAlbumKeyWithoutSync(albumId string) string {
+	for _, key := range a.ApiKeys {
+		log.Debugf("Fetching album %s with API key %s", albumId, key)
+		albums, err := a.getAlbums(a.immageBaseURL, key)
+		if err != nil {
+			log.Errorf("Failed to fetch albums for API key %s: %v", key, err)
+			continue
+		}
+		if slices.Contains(albums, albumId) {
+			a.setAlbumKey(albumId, key)
+			return key
+		}
+	}
+
+	return ""
+}
+
+func (a *AlbumsKeys) getAlbumKeyFromMap(albumId string) string {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 
@@ -69,6 +109,11 @@ func (a *AlbumsKeys) fetchAllAlbums(baseUrl string) {
 
 func (a *AlbumsKeys) StartRefreshing(ctx context.Context,
 	refreshInterval time.Duration, immichUrl string) {
+	if !a.syncEnabled {
+		log.Warn("Albums sync is disabled, not starting refresh")
+		return
+	}
+
 	ticker := time.NewTicker(refreshInterval)
 	defer ticker.Stop()
 	log.Infof("Starting albums refresh every %s", refreshInterval)

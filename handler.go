@@ -205,7 +205,6 @@ func requireParams(w http.ResponseWriter, r *http.Request, keys ...string) (map[
 			val = GetAssetID(r)
 		case "size":
 			val = GetAssetSize(r)
-			// 可扩展更多参数
 		}
 		if val == "" {
 			log.Warnf("Missing or invalid %s in request: %s", key, r.URL.String())

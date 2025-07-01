@@ -11,6 +11,7 @@ type Config struct {
 	Immich struct {
 		URL                   string   `yaml:"url"`
 		APIKeys               []string `yaml:"api_keys"`
+		AlbumsSyncEnabled     bool     `yaml:"albumsSyncEnabled,omitempty"`
 		AlbumsRefreshInterval string   `yaml:"albumsRefreshInterval,omitempty"`
 	} `yaml:"immich"`
 	Listen   string     `yaml:"listen"`

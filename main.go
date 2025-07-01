@@ -29,10 +29,13 @@ func main() {
 	if err != nil {
 		log.Fatalf("Invalid albumsRefreshInterval: %v", err)
 	}
-	albumsKeys := NewAlbumsKeys(cfg.Immich.APIKeys)
+	albumsKeys := NewAlbumsKeys(cfg.Immich.APIKeys, cfg.Immich.AlbumsSyncEnabled, cfg.Immich.URL)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	albumsKeys.StartRefreshing(ctx, refreshInterval, cfg.Immich.URL)
+	if cfg.Immich.AlbumsSyncEnabled {
+		log.Infof("Albums sync enabled, refreshing every %s", refreshInterval)
+		albumsKeys.StartRefreshing(ctx, refreshInterval, cfg.Immich.URL)
+	}
 
 	immichService := &ImmichService{
 		client: NewIMMICHClient(cfg.Immich.URL, albumsKeys),
